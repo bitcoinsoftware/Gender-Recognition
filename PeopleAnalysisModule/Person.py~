@@ -1,0 +1,113 @@
+import cv,  cv2
+import time
+class Person:
+    #def __init__(self, cvmatrix, face_cords,  sectors,  white_level):
+    def __init__(self,  face_data,    sectors,  white_level):
+        #[0, [[63, 123, 39, 32]], [[99, 144, 28, 17], [99, 70, 43, 26], [92, 45, 59, 35]]]
+        #face_data,  self.sectors,  self.white_level
+        print "checking pearson"
+        self.last_seen_time =time.time()
+        self.white_level = white_level
+        self.face_cords = face_data[1]
+        self.size = (self.face_cords[2], self.face_cords[3])
+        self.sectors = sectors
+        self.face_number = face_data[0]
+        self.nose = face_data[2]
+        self.points = face_data[3]
+        if self.set_face_with_key_points_and_sector( ):
+            self.count_face_characteristics()
+            self.pearson_creation_compleated = True
+        else:
+            self.pearson_creation_compleated = False
+        
+    def is_person_created(self):
+        return self.pearson_creation_compleated
+    # -----------------------------------
+        
+    def set_face_with_key_points_and_sector(self):
+        #print "NOSE",  self.nose
+        p_oczy, l_oczy, usta = self._uporzadkuj_punkty_kluczowe_podlug_roli(self.points,self.face_cords, self.nose)
+        #print p_oczy, l_oczy, usta
+        if len(p_oczy)>0 and len(l_oczy)>0 and len(usta)>0:
+            #print "punkty sie zgadzaja"
+            self.r_eye,  self.l_eye,  self.mouth = p_oczy[0],  l_oczy[0],  usta[0]
+            self.sector = self._find_sector(self.face_cords)
+            if self.sector:
+                #print "sektor znaleziony" ,  self.sector
+                return True
+        return False
+
+    def _find_sector(self, face):
+        #print self.sectors
+        i, j=0, 0
+        for row in self.sectors:
+            i+=1
+            for sector in row:
+                j+=1
+                s_t = (face[0]+face[2]/2,  face[1]+face[3]/2  ) #srodek_twarzy
+                if s_t[0]> sector[0] and s_t[0]<sector[2]  and s_t[1]>sector[1] and s_t[1]<sector[3] :
+                    return [j, i]
+                
+    def _bubblesort_tuples(self, array_of_tuples,index =1):
+        n = len(array_of_tuples)
+        while n>1:
+            for i in range(n-1):
+                if array_of_tuples[i][index] < array_of_tuples[i+1][index]:
+                    temp =array_of_tuples[i]
+                    array_of_tuples[i] = array_of_tuples[i+1]
+                    array_of_tuples[i+1]=temp
+            n = n-1
+        return array_of_tuples
+        
+    def _uporzadkuj_punkty_kluczowe_podlug_roli(self, punkty_kluczowe,twarz,nos):
+        x_nosa, y_nosa = nos[0][0]+nos[0][2]/2, nos[0][1]+nos[0][3]/2
+        delta_x_od_nosa = twarz[2]/4
+        #x_nosa, y_nosa = nos[0]+nos[2]/2, nos[1]+nos[3]/2
+        #delta_x_od_nosa = twarz[2]/4
+        usta, prawe_oczy, lewe_oczy =[],[],[]
+        for punkt in punkty_kluczowe:
+            #jesli w gornej prawej cwiartce
+            #if punkt[0][0]+punkt[0][2]/2>x_nosa and punkt[0][1]+punkt[0][3]/2<y_nosa:
+            if punkt[0]+punkt[2]/2>x_nosa and punkt[1]+punkt[3]/2<y_nosa:
+                prawe_oczy.append(punkt)
+            #jesli w gornej lewej cwiartce
+            #elif punkt[0][0]+punkt[0][2]/2<x_nosa and punkt[0][1]+punkt[0][3]/2<y_nosa:
+            elif punkt[0]+punkt[2]/2<x_nosa and punkt[1]+punkt[3]/2<y_nosa:
+                lewe_oczy.append(punkt)
+            #jesli na srodku w dole, na szerokosci geograficznej nosa
+            #elif punkt[0][1]+punkt[0][3]/2>y_nosa and x_nosa- delta_x_od_nosa <punkt[0][0]+punkt[0][2]/2   and x_nosa+ delta_x_od_nosa >punkt[0][0]+punkt[0][2]/2  :
+            elif punkt[1]+punkt[3]/2>y_nosa and x_nosa- delta_x_od_nosa <punkt[0]+punkt[2]/2   and x_nosa+ delta_x_od_nosa >punkt[0]+punkt[2]/2  :
+                usta.append(punkt)
+        return prawe_oczy, lewe_oczy, usta
+    # ---------------------------------        
+        
+    def count_face_characteristics(self):
+        a= "tmp/face"; b= ".jpg"
+        full_url,  low_url,  up_url = a+str(self.face_number)+b ,  a+"low"+str(self.face_number)+b, a+"upp"+str(self.face_number)+b
+        full_face = cv.LoadImageM(full_url)
+        self._count_wrinkles(full_face)
+        self.av_low_face_color = cv.Avg(cv.LoadImageM(low_url))
+        self.av_high_face_color = cv.Avg(cv.LoadImageM(up_url))  
+        self.av_face_color,  self.face_stddev = cv.AvgSdv(full_face)
+        
+    def get_face_vector(self):
+        pv= [self.av_face_color,  self.av_low_face_color,  self.av_high_face_color,  self.wrinkles, self.face_stddev,   self.sector,  self.last_seen_time]
+        comp_vect = [pv[0][0], pv[0][1], pv[0][2], pv[1][0], pv[1][1], pv[1][2], pv[2][0], pv[2][1], pv[2][2],  pv[3], pv[4][0], pv[4][1], pv[4][2], pv[5][0], pv[5][1] , pv[6]]
+        return comp_vect
+        
+    def _count_wrinkles(self, cvmatrix):
+        sob_mat = cv.CloneMat(cvmatrix)
+        cv.Sobel(sob_mat,sob_mat,1,1)
+        y_max = sob_mat.rows
+        y_badania1= y_max/5
+        y_badania2= y_max/4
+        #print "y badania  :", y_badania1,"kolejny ", y_badania2
+        x_max = sob_mat.cols #rect_twarzy[2]
+        i=0
+        twarz = sob_mat
+        for x in range(x_max):
+            if twarz[x,y_badania1][0]+twarz[x,y_badania1][1]+twarz[x,y_badania1][2]>self.white_level:
+                i+=1
+            if twarz[x,y_badania2][0]+twarz[x,y_badania2][1]+twarz[x,y_badania2][2]>self.white_level:
+                i+=1
+        self.wrinkles = i/2

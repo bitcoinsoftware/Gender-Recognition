@@ -1,0 +1,91 @@
+import time
+
+class Room:
+    def __init__(self, people_ammount , new_person_tresh):
+        print "Room"
+        self.people_list =[]
+        #how many people  should it remember
+        self.people_ammount = people_ammount
+        self.new_person_tresh =new_person_tresh
+        
+    def check_and_add_if_new(self, person):
+        p_class =self.is_a_new_person(person) 
+        if p_class[0]:
+            self.people_list.append(person)
+        else:
+            print "do updatu"
+        return p_class
+            #self.update(person)
+
+    def is_a_new_person(self, person):
+        if len(self.people_list)==0:
+            self.people_list.append(person)
+            return [True, (0, 10)]
+        else:
+            pv = person.get_face_vector()
+            person_class = self.check_face_vector(pv)
+            if person_class[0]==False:
+                print "ta osoba jest klasy",  person_class[1]
+            else:
+                print "ta osoba jest nowa, najblizszy sasiad to:",  person_class[1]
+            return person_class
+            
+    def update(self, person, new_person):
+        #person.last_seen_time = time.time()
+        person= new_person
+        
+    def check_face_vector(self, pv):
+        diff_list=[]
+        j=0
+        for person in self.people_list:
+            diff=[]
+            fv= person.get_face_vector()
+            i=0
+            for scl in fv:
+                diff.append(abs((scl - pv[i])/(0.01+pv[i])))  #zamienic na wartosc absolutna
+                i+=1
+            diff_list.append((j, sum(diff)))
+            j+=1
+        diff_list = self._bubblesort_tuples(diff_list,  decr_incr=0)
+        print diff_list
+        """
+        #3#3#3###########
+        #sortuje i grupuje cechy
+        sorted_typed_diff_list=[]
+        for i in range(len(pv)):
+            list_of_same_type_diffs =[]
+            for diff in diff_list:
+                list_of_same_type_diffs.append((i, diff[i]))
+            sorted_typed_diff_list.append(self._bubblesort_tuples(list_of_same_type_diffs, decr_incr=0))
+        #klasyfikuje
+        string_of_neighbours=""
+        neighbours_count_array=[]
+        for sorted_typed_diff in sorted_typed_diff_list:
+            string_of_neighbours+=str(sorted_typed_diff[0][0])
+        for i in range(len(self.people_list)):
+            neighbours_count_array.append( (i, string_of_neighbours.count(str(i))))
+        nearest_neighbour_and_nnc = self._bubblesort_tuples(neighbours_count_array)
+        #3#3###########################
+        """
+        
+        print  "posortowani sasiedzi",  diff_list
+        print "wszyscy ludzie",  self.people_list
+        #to trzeba poprawic bo jest chujowe narazie 
+        if diff_list[0][1]< self.new_person_tresh: # jesli duza roznica
+            #print "NN",  nearest_neighbour_and_nnc
+            return [True ,  diff_list[0][0]]  # nowa osoba
+        else:
+            return [False , diff_list[0][0]]  #stara osoba
+        
+    def _bubblesort_tuples(self, array_of_tuples,index =1,  decr_incr =1):
+        n = len(array_of_tuples)
+        while n>1:
+            for i in range(n-1):
+                if decr_incr: eq = array_of_tuples[i][index] < array_of_tuples[i+1][index]
+                else: eq = array_of_tuples[i][index] > array_of_tuples[i+1][index]
+                if eq:
+                    temp =array_of_tuples[i]
+                    array_of_tuples[i] = array_of_tuples[i+1]
+                    array_of_tuples[i+1]=temp
+            n = n-1
+        return array_of_tuples
